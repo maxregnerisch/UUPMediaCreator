@@ -1,5 +1,3 @@
-//modify me https://raw.githubusercontent.com/maxregnerisch/UUPMediaCreator/master/src/Applications/UUPDownload/DownloadRequest/Process.cs for adding support for windows 12
-
 /*
  * Copyright (c) Gustave Monce and Contributors
  * 
@@ -166,8 +164,7 @@ namespace UUPDownload.DownloadRequest
             Logging.Log($"Appx fixup applied.");
         }
 
-        //add windows 12 support
-        public static async Task CheckAndDownloadUpdates(OSSkuId ReportingSku,
+        private static async Task CheckAndDownloadUpdates(OSSkuId ReportingSku,
                     string ReportingVersion,
                     MachineType MachineType,
                     string FlightRing,
@@ -192,174 +189,126 @@ namespace UUPDownload.DownloadRequest
                 token = await MBIHelper.GenerateMicrosoftAccountTokenAsync(Mail, Password);
             }
 
-            IEnumerable<UpdateData> data = await FE3Handler.GetUpdateDataAsync(ctac, token);
-            if (data == null)
+            IEnumerable<UpdateData> data = await FE3Handler.GetUpdates(null, ctac, token, FileExchangeV3UpdateFilter.ProductRelease);
+            //data = data.Select(x => UpdateUtils.TrimDeltasFromUpdateData(x));
+
+            if (!data.Any())
             {
-                Logging.Log("No updates found.");
-                return;
+                Logging.Log("No updates found that matched the specified criteria.", Logging.LoggingLevel.Error);
             }
-
-            foreach (UpdateData update in data)
+            else
             {
-                Logging.Log("Title: " + update.Xml.LocalizedProperties.Title);
-                Logging.Log("Description: " + update.Xml.LocalizedProperties.Description);
+                Logging.Log($"Found {data.Count()} update(s):");
 
-                await ProcessUpdateAsync(update, OutputFolder, MachineType, Language, Edition);
+                for (int i = 0; i < data.Count(); i++)
+                {
+                    UpdateData update = data.ElementAt(i);
+
+                    Logging.Log($"{i}: Title: {update.Xml.LocalizedProperties.Title}");
+                    Logging.Log($"{i}: Description: {update.Xml.LocalizedProperties.Description}");
+                }
+
+                foreach (UpdateData update in data)
+                {
+                    Logging.Log("Title: " + update.Xml.LocalizedProperties.Title);
+                    Logging.Log("Description: " + update.Xml.LocalizedProperties.Description);
+
+                    await ProcessUpdateAsync(update, OutputFolder, MachineType, Language, Edition, true);
+                }
+            }
+            Logging.Log("Completed.");
+            if (Debugger.IsAttached)
+            {
+                _ = Console.ReadLine();
             }
         }
 
-        public static async Task ProcessUpdateAsync(UpdateData update, string OutputFolder, MachineType MachineType, string Language, string Edition)
+        private static async Task ProcessUpdateAsync(UpdateData update, string pOutputFolder, MachineType MachineType, string Language = "", string Edition = "", bool WriteMetadata = true)
         {
-            if (update.CompDBs == null)
-            {
-                Logging.Log("No compdbs found. Skipping.");
-                return;
-            }
+            string buildstr = "";
+            IEnumerable<string> languages = null;
 
-            foreach (CompDBXmlClass.CompDB compdb in update.CompDBs)
+            Logging.Log("Gathering update metadata...");
+
+            HashSet<CompDBXmlClass.CompDB> compDBs = await update.GetCompDBsAsync();
+
+            await Task.WhenAll(
+                Task.Run(async () => buildstr = await update.GetBuildStringAsync()),
+                Task.Run(async () => languages = await update.GetAvailableLanguagesAsync()));
+
+            buildstr ??= "";
+
+            //
+            // Windows Phone Build Lab says hi
+            //
+            // Quirk with Nickel+ Windows NT builds where specific binaries
+            // exempted from neutral build info gets the wrong build tags
+            //
+            if (buildstr.Contains("GitEnlistment(winpbld)"))
             {
-                if (compdb.Tags.Tag.Find(x => x.Name.Equals("UpdateType", StringComparison.InvariantCultureIgnoreCase))?.Value?.Equals("Canonical", StringComparison.InvariantCultureIgnoreCase) == true)
+                // We need to fallback to CompDB (less accurate but we have no choice, due to CUs etc...
+
+                // Loop through all CompDBs to find the highest version reported
+                CompDBXmlClass.CompDB selectedCompDB = null;
+                Version currentHighest = null;
+                foreach (CompDBXmlClass.CompDB compDB in compDBs)
                 {
-                    Logging.Log("Canonical compdb found.");
-                    await ProcessCompDBAsync(update, compdb, OutputFolder, MachineType, Language, Edition);
-                }
-            }
-        }
-
-        public static async Task ProcessCompDBAsync(UpdateData update, CompDBXmlClass.CompDB compdb, string OutputFolder, MachineType MachineType, string Language, string Edition)
-        {
-            if (compdb.AppX == null)
-            {
-                Logging.Log("No appx packages found. Skipping.");
-                return;
-            }
-
-            string appxRoot = Path.Combine(OutputFolder, "Appx");
-            if (!Directory.Exists(appxRoot))
-            {
-                Logging.Log($"Creating {appxRoot}");
-                _ = Directory.CreateDirectory(appxRoot);
-            }
-
-            List<string> appxFiles = new();
-            foreach (CompDBXmlClass.AppxPackage package in compdb.AppX.AppXPackages.Package)
-            {
-                if (package.Payload.PayloadItem == null)
-                {
-                    Logging.Log("No payload items found. Skipping.");
-                    continue;
-                }
-
-                foreach (CompDBXmlClass.PayloadItem payloadItem in package.Payload.PayloadItem)
-                {
-                    string appxPath = Path.Combine(appxRoot, payloadItem.Path);
-                    if (File.Exists(appxPath))
+                    if (compDB.TargetOSVersion != null)
                     {
-                        Logging.Log($"File {appxPath} already exists. Skipping.");
-                        continue;
+                        if (Version.TryParse(compDB.TargetOSVersion, out Version currentVer))
+                        {
+                            if (currentHighest == null || (currentVer != null && currentVer.GreaterThan(currentHighest)))
+                            {
+                                if (!string.IsNullOrEmpty(compDB.TargetBuildInfo) && !string.IsNullOrEmpty(compDB.TargetOSVersion))
+                                {
+                                    currentHighest = currentVer;
+                                    selectedCompDB = compDB;
+                                }
+                            }
+                        }
                     }
-
-                    Logging.Log($"Downloading {appxPath}...");
-                    await DownloadFileAsync(payloadItem.Url, appxPath);
-                    appxFiles.Add(appxPath);
                 }
-            }
 
-            if (appxFiles.Count > 0)
-            {
-                await FixupAppxAsync(update, appxFiles, appxRoot);
-            }
-        }
-
-        public static async Task DownloadFileAsync(string url, string path)
-        {
-            using HttpClient client = new();
-            using HttpResponseMessage response = await client.GetAsync(url);
-            using Stream streamToReadFrom = await response.Content.ReadAsStreamAsync();
-            using Stream streamToWriteTo = File.Create(path);
-            await streamToReadFrom.CopyToAsync(streamToWriteTo);
-        }
-
-        public static async Task FixupAppxAsync(UpdateData update, List<string> appxFiles, string appxRoot)
-        
-        {
-            if (update.CompDBs == null)
-            {
-                Logging.Log("No compdbs found. Skipping.");
-                return;
-            }
-
-            foreach (CompDBXmlClass.CompDB compdb in update.CompDBs)
-            {
-                if (compdb.Tags.Tag.Find(x => x.Name.Equals("UpdateType", StringComparison.InvariantCultureIgnoreCase))?.Value?.Equals("Canonical", StringComparison.InvariantCultureIgnoreCase) == true)
+                // We found a suitable CompDB is it is not null
+                if (selectedCompDB != null)
                 {
-                    Logging.Log("Canonical compdb found.");
-                    await ProcessCompDBAsync(update, compdb, appxFiles, appxRoot);
+                    // Example format:
+                    // TargetBuildInfo="rs_prerelease_flt.22509.1011.211120-1700"
+                    // TargetOSVersion="10.0.22509.1011"
+
+                    buildstr = $"{selectedCompDB.TargetOSVersion} ({selectedCompDB.TargetBuildInfo.Split(".")[0]}.{selectedCompDB.TargetBuildInfo.Split(".")[3]})";
                 }
             }
-        }
 
-        public static async Task ProcessCompDBAsync(UpdateData update, CompDBXmlClass.CompDB compdb, List<string> appxFiles, string appxRoot)
-        {
-            if (compdb.AppX == null)
+            if (string.IsNullOrEmpty(buildstr) && update.Xml.LocalizedProperties.Title.Contains("(UUP-CTv2)"))
             {
-                Logging.Log("No appx packages found. Skipping.");
-                return;
+                string unformattedBase = update.Xml.LocalizedProperties.Title.Split(" ")[0];
+                buildstr = $"10.0.{unformattedBase.Split(".")[0]}.{unformattedBase.Split(".")[1]} ({unformattedBase.Split(".")[2]}.{unformattedBase.Split(".")[3]})";
+            }
+            else if (string.IsNullOrEmpty(buildstr))
+            {
+                buildstr = update.Xml.LocalizedProperties.Title;
             }
 
-            Dictionary<string, string> appxLicenseFileMap = new();
-            foreach (CompDBXmlClass.AppxPackage package in compdb.AppX.AppXPackages.Package)
+            Logging.Log("Build String: " + buildstr);
+            Logging.Log("Languages: " + string.Join(", ", languages));
+
+            Logging.Log("Parsing CompDBs...");
+
+            if (compDBs != null)
             {
-                if (package.LicenseData != null)
+                CompDBXmlClass.Package editionPackPkg = compDBs.GetEditionPackFromCompDBs();
+                if (editionPackPkg != null)
                 {
-                    string appxPath = Path.Combine(appxRoot, package.Payload.PayloadItem.FirstOrDefault().Path);
-                    string appxLicensePath = Path.Combine(appxRoot, $"{Path.GetFileNameWithoutExtension(appxPath)}.license");
-                    Logging.Log($"Writing license to {appxLicensePath}");
-                    File.WriteAllText(appxLicensePath, package.LicenseData);
-                    appxLicenseFileMap.Add(Path.GetFileName(appxPath), Path.GetFileName(appxLicensePath));
-                }
-            }
+                    string editionPkg = await update.DownloadFileFromDigestAsync(editionPackPkg.Payload.PayloadItem.First(x => !x.Path.EndsWith(".psf")).PayloadHash);
+                    BuildTargets.EditionPlanningWithLanguage[] plans = await Task.WhenAll(languages.Select(x => update.GetTargetedPlanAsync(x, editionPkg)));
 
-            if (appxLicenseFileMap.Count > 0)
-            {
-                await FixupAppxAsync(update, appxFiles, appxRoot, appxLicenseFileMap);
-            }
-        }
-
-        public static async Task FixupAppxAsync(UpdateData update, List<string> appxFiles, string appxRoot, Dictionary<string, string> appxLicenseFileMap)
-        {
-            foreach (string appxFile in appxFiles)
-            {
-                string appxLicenseFile = appxLicenseFileMap.GetValueOrDefault(Path.GetFileName(appxFile));
-                if (appxLicenseFile != null)
-                {
-                    Logging.Log($"Adding license to {appxFile}");
-                    await AddLicenseToAppxAsync(appxFile, Path.Combine(appxRoot, appxLicenseFile));
-                }
-            }
-        }
-
-        public static async Task AddLicenseToAppxAsync(string appxFile, string appxLicenseFile)
-        {
-            using ZipArchive archive = ZipFile.Open(appxFile, ZipArchiveMode.Update);
-            ZipArchiveEntry licenseEntry = archive.CreateEntry("AppxSignature.p7x");
-            using Stream licenseStream = licenseEntry.Open();
-            await File.OpenRead(appxLicenseFile).CopyToAsync(licenseStream);
-        }
-
-        public static async Task Main(string[] args)
-        {
-            Logging.Log("Starting...");
-            await ProcessUpdateAsync(args[0], args[1], args[2], args[3], args[4]);
-            Logging.Log("Done.");
-        }
-
-        public static class Logging
-        {
-            public static void Log(string message)
-            {
-                Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message}");
-               }
+                    foreach (BuildTargets.EditionPlanningWithLanguage plan in plans)
+                    {
+                        Logging.Log("");
+                        Logging.Log("Editions available for language: " + plan.LanguageCode);
+                        plan.EditionTargets.PrintAvailablePlan();
+                    }
                 }
             }
 
