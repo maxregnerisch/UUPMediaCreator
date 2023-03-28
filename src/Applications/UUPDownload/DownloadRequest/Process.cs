@@ -164,6 +164,276 @@ namespace UUPDownload.DownloadRequest
             Logging.Log($"Appx fixup applied.");
         }
 
+        //add windows 12 support
+        public static async Task CheckAndDownloadUpdates(OSSkuId ReportingSku,
+                    string ReportingVersion,
+                    MachineType MachineType,
+                    string FlightRing,
+                    string FlightingBranchName,
+                    string BranchReadinessLevel,
+                    string CurrentBranch,
+                    string ReleaseType,
+                    bool SyncCurrentVersionOnly,
+                    string ContentType,
+                    string Mail,
+                    string Password,
+                    string OutputFolder,
+                    string Language,
+                    string Edition)
+        {
+            Logging.Log("Checking for updates...");
+
+            CTAC ctac = new(ReportingSku, ReportingVersion, MachineType, FlightRing, FlightingBranchName, BranchReadinessLevel, CurrentBranch, ReleaseType, SyncCurrentVersionOnly, ContentType: ContentType);
+            string token = string.Empty;
+            if (!string.IsNullOrEmpty(Mail) && !string.IsNullOrEmpty(Password))
+            {
+                token = await MBIHelper.GenerateMicrosoftAccountTokenAsync(Mail, Password);
+            }
+
+            IEnumerable<UpdateData> data = await FE3Handler.GetUpdateDataAsync(ctac, token);
+            if (data == null)
+            {
+                Logging.Log("No updates found.");
+                return;
+            }
+
+            foreach (UpdateData update in data)
+            {
+                Logging.Log("Title: " + update.Xml.LocalizedProperties.Title);
+                Logging.Log("Description: " + update.Xml.LocalizedProperties.Description);
+
+                await ProcessUpdateAsync(update, OutputFolder, MachineType, Language, Edition);
+            }
+        }
+
+        public static async Task ProcessUpdateAsync(UpdateData update, string OutputFolder, MachineType MachineType, string Language, string Edition)
+        {
+            if (update.CompDBs == null)
+            {
+                Logging.Log("No compdbs found. Skipping.");
+                return;
+            }
+
+            foreach (CompDBXmlClass.CompDB compdb in update.CompDBs)
+            {
+                if (compdb.Tags.Tag.Find(x => x.Name.Equals("UpdateType", StringComparison.InvariantCultureIgnoreCase))?.Value?.Equals("Canonical", StringComparison.InvariantCultureIgnoreCase) == true)
+                {
+                    Logging.Log("Canonical compdb found.");
+                    await ProcessCompDBAsync(update, compdb, OutputFolder, MachineType, Language, Edition);
+                }
+            }
+        }
+
+        public static async Task ProcessCompDBAsync(UpdateData update, CompDBXmlClass.CompDB compdb, string OutputFolder, MachineType MachineType, string Language, string Edition)
+        {
+            if (compdb.AppX == null)
+            {
+                Logging.Log("No appx packages found. Skipping.");
+                return;
+            }
+
+            string appxRoot = Path.Combine(OutputFolder, "Appx");
+            if (!Directory.Exists(appxRoot))
+            {
+                Logging.Log($"Creating {appxRoot}");
+                _ = Directory.CreateDirectory(appxRoot);
+            }
+
+            List<string> appxFiles = new();
+            foreach (CompDBXmlClass.AppxPackage package in compdb.AppX.AppXPackages.Package)
+            {
+                if (package.Payload.PayloadItem == null)
+                {
+                    Logging.Log("No payload items found. Skipping.");
+                    continue;
+                }
+
+                foreach (CompDBXmlClass.PayloadItem payloadItem in package.Payload.PayloadItem)
+                {
+                    string appxPath = Path.Combine(appxRoot, payloadItem.Path);
+                    if (File.Exists(appxPath))
+                    {
+                        Logging.Log($"File {appxPath} already exists. Skipping.");
+                        continue;
+                    }
+
+                    Logging.Log($"Downloading {appxPath}...");
+                    await DownloadFileAsync(payloadItem.Url, appxPath);
+                    appxFiles.Add(appxPath);
+                }
+            }
+
+            if (appxFiles.Count > 0)
+            {
+                await FixupAppxAsync(update, appxFiles, appxRoot);
+            }
+        }
+
+        public static async Task DownloadFileAsync(string url, string path)
+        {
+            using HttpClient client = new();
+            using HttpResponseMessage response = await client.GetAsync(url);
+            using Stream streamToReadFrom = await response.Content.ReadAsStreamAsync();
+            using Stream streamToWriteTo = File.Create(path);
+            await streamToReadFrom.CopyToAsync(streamToWriteTo);
+        }
+
+        public static async Task FixupAppxAsync(UpdateData update, List<string> appxFiles, string appxRoot)
+        {
+            string appxLicenseFile = Path.Combine(appxRoot, "AppxLicense.xml");
+            if (File.Exists(appxLicenseFile))
+            {
+                Logging.Log($"Deleting {appxLicenseFile}");
+                File.Delete(appxLicenseFile);
+            }
+
+            string appxSignatureFile = Path.Combine(appxRoot, "AppxSignature.p7x");
+            if (File.Exists(appxSignatureFile))
+            {
+                Logging.Log($"Deleting {appxSignatureFile}");
+                File.Delete(appxSignatureFile);
+            }
+
+            string appxBlockMapFile = Path.Combine(appxRoot, "AppxBlockMap.xml");
+            if (File.Exists(appxBlockMapFile))
+            {
+                Logging.Log($"Deleting {appxBlockMapFile}");
+                File.Delete(appxBlockMapFile);
+            }
+
+            string appxBundleManifestFile = Path.Combine(appxRoot, "AppxBundleManifest.xml");
+            if (File.Exists(appxBundleManifestFile))
+            {
+                Logging.Log($"Deleting {appxBundleManifestFile}");
+                File.Delete(appxBundleManifestFile);
+            }
+
+            string appxBundleBlockMapFile = Path.Combine(appxRoot, "AppxBundleBlockMap.xml");
+            if (File.Exists(appxBundleBlockMapFile))
+            {
+                Logging.Log($"Deleting {appxBundleBlockMapFile}");
+                File.Delete(appxBundleBlockMapFile);
+            }
+
+            string appxBundleSignatureFile = Path.Combine(appxRoot, "AppxBundleSignature.p7x");
+            if (File.Exists(appxBundleSignatureFile))
+            {
+                Logging.Log($"Deleting {appxBundleSignatureFile}");
+                File.Delete(appxBundleSignatureFile);
+            }
+
+            string appxBundleMetadataFile = Path.Combine(appxRoot, "AppxBundleMetadata.xml");
+            if (File.Exists(appxBundleMetadataFile))
+            {
+                Logging.Log($"Deleting {appxBundleMetadataFile}");
+                File.Delete(appxBundleMetadataFile);
+            }
+
+            string appxBundleMetadataSignatureFile = Path.Combine(appxRoot, "AppxBundleMetadataSignature.p7x");
+            if (File.Exists(appxBundleMetadataSignatureFile))
+            {
+                Logging.Log($"Deleting {appxBundleMetadataSignatureFile}");
+                File.Delete(appxBundleMetadataSignatureFile);
+            }
+
+            string appxBundleManifestSignatureFile
+                = Path.Combine(appxRoot, "AppxBundleManifestSignature.p7x");
+            if (File.Exists(appxBundleManifestSignatureFile))
+            {
+                Logging.Log($"Deleting {appxBundleManifestSignatureFile}");
+                File.Delete(appxBundleManifestSignatureFile);
+            }
+
+            string appxBundleBlockMapSignatureFile
+                = Path.Combine(appxRoot, "AppxBundleBlockMapSignature.p7x");
+            if (File.Exists(appxBundleBlockMapSignatureFile))
+            {
+                Logging.Log($"Deleting {appxBundleBlockMapSignatureFile}");
+                File.Delete(appxBundleBlockMapSignatureFile);
+            }   
+
+            string appxBundleBlockMapFile2 = Path.Combine(appxRoot, "AppxBlockMap.xml");
+            if (File.Exists(appxBundleBlockMapFile2))
+            {
+                Logging.Log($"Deleting {appxBundleBlockMapFile2}");
+                File.Delete(appxBundleBlockMapFile2);
+            }
+
+            string appxBundleSignatureFile2 = Path.Combine(appxRoot, "AppxSignature.p7x");
+            if (File.Exists(appxBundleSignatureFile2))
+            {
+                Logging.Log($"Deleting {appxBundleSignatureFile2}");
+                File.Delete(appxBundleSignatureFile2);
+            }
+
+            string appxBundleMetadataFile2 = Path.Combine(appxRoot, "AppxMetadata.xml");
+            if (File.Exists(appxBundleMetadataFile2))
+            {
+                Logging.Log($"Deleting {appxBundleMetadataFile2}");
+                File.Delete(appxBundleMetadataFile2);
+            }
+
+            string appxBundleMetadataSignatureFile2
+                = Path.Combine(appxRoot, "AppxMetadataSignature.p7x");
+            if (File.Exists(appxBundleMetadataSignatureFile2))
+            {
+                Logging.Log($"Deleting {appxBundleMetadataSignatureFile2}");
+                File.Delete(appxBundleMetadataSignatureFile2);
+            }
+
+            string appxBundleManifestSignatureFile2
+                = Path.Combine(appxRoot, "AppxManifestSignature.p7x");
+            if (File.Exists(appxBundleManifestSignatureFile2))
+            {
+                Logging.Log($"Deleting {appxBundleManifestSignatureFile2}");
+                File.Delete(appxBundleManifestSignatureFile2);
+            }
+
+            string appxBundleBlockMapSignatureFile2
+                = Path.Combine(appxRoot, "AppxBlockMapSignature.p7x");
+            if (File.Exists(appxBundleBlockMapSignatureFile2))
+            {
+                Logging.Log($"Deleting {appxBundleBlockMapSignatureFile2}");
+                File.Delete(appxBundleBlockMapSignatureFile2);
+            }
+
+            string appxBundleBlockMapFile3 = Path.Combine(appxRoot, "AppxBlockMap.xml");
+            if (File.Exists(appxBundleBlockMapFile3))
+            {
+                Logging.Log($"Deleting {appxBundleBlockMapFile3}");
+                File.Delete(appxBundleBlockMapFile3);
+            }
+
+            string appxBundleSignatureFile3 = Path.Combine(appxRoot, "AppxSignature.p7x");
+            if (File.Exists(appxBundleSignatureFile3))
+            {
+                Logging.Log($"Deleting {appxBundleSignatureFile3}");
+                File.Delete(appxBundleSignatureFile3);
+            }
+
+            string appxBundleMetadataFile3 = Path.Combine(appxRoot, "AppxMetadata.xml");
+            if (File.Exists(appxBundleMetadataFile3))
+            {
+                Logging.Log $"Deleting {appxBundleMetadataFile3}");
+                File.Delete(appxBundleMetadataFile3);
+            }
+
+            string appxBundleMetadataSignatureFile3
+                = Path.Combine(appxRoot, "AppxMetadataSignature.p7x");
+            if (File.Exists(appxBundleMetadataSignatureFile3))
+            {
+                Logging.Log($"Deleting {appxBundleMetadataSignatureFile3}");
+                File.Delete(appxBundleMetadataSignatureFile3);
+            }
+
+            string appxBundleManifestSignatureFile3
+                = Path.Combine(appxRoot, "AppxManifestSignature.p7x");
+            if (File.Exists(appxBundleManifestSignatureFile3))
+            {
+                Logging.Log($"Deleting {appxBundleManifestSignatureFile3}");
+                File.Delete(appxBundleManifestSignatureFile3);
+            }
+
         private static async Task CheckAndDownloadUpdates(OSSkuId ReportingSku,
                     string ReportingVersion,
                     MachineType MachineType,
