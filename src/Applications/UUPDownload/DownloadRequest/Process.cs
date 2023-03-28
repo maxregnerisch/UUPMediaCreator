@@ -360,5 +360,10 @@ namespace UUPDownload.DownloadRequest
             {
                 Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message}");
                }
+                }
+            }
+
+            _ = await DownloadLib.UpdateUtils.ProcessUpdateAsync(update, pOutputFolder, MachineType, new ReportProgress(), Language, Edition, WriteMetadata);
+        }
     }
 }
