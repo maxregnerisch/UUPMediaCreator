@@ -1,4 +1,6 @@
-﻿/*
+//modify me https://raw.githubusercontent.com/maxregnerisch/UUPMediaCreator/master/src/Applications/UUPDownload/DownloadRequest/Process.cs for adding support for windows 12
+
+/*
  * Copyright (c) Gustave Monce and Contributors
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -279,310 +281,83 @@ namespace UUPDownload.DownloadRequest
         }
 
         public static async Task FixupAppxAsync(UpdateData update, List<string> appxFiles, string appxRoot)
+        
         {
-            string appxLicenseFile = Path.Combine(appxRoot, "AppxLicense.xml");
-            if (File.Exists(appxLicenseFile))
+            if (update.CompDBs == null)
             {
-                Logging.Log($"Deleting {appxLicenseFile}");
-                File.Delete(appxLicenseFile);
+                Logging.Log("No compdbs found. Skipping.");
+                return;
             }
 
-            string appxSignatureFile = Path.Combine(appxRoot, "AppxSignature.p7x");
-            if (File.Exists(appxSignatureFile))
+            foreach (CompDBXmlClass.CompDB compdb in update.CompDBs)
             {
-                Logging.Log($"Deleting {appxSignatureFile}");
-                File.Delete(appxSignatureFile);
-            }
-
-            string appxBlockMapFile = Path.Combine(appxRoot, "AppxBlockMap.xml");
-            if (File.Exists(appxBlockMapFile))
-            {
-                Logging.Log($"Deleting {appxBlockMapFile}");
-                File.Delete(appxBlockMapFile);
-            }
-
-            string appxBundleManifestFile = Path.Combine(appxRoot, "AppxBundleManifest.xml");
-            if (File.Exists(appxBundleManifestFile))
-            {
-                Logging.Log($"Deleting {appxBundleManifestFile}");
-                File.Delete(appxBundleManifestFile);
-            }
-
-            string appxBundleBlockMapFile = Path.Combine(appxRoot, "AppxBundleBlockMap.xml");
-            if (File.Exists(appxBundleBlockMapFile))
-            {
-                Logging.Log($"Deleting {appxBundleBlockMapFile}");
-                File.Delete(appxBundleBlockMapFile);
-            }
-
-            string appxBundleSignatureFile = Path.Combine(appxRoot, "AppxBundleSignature.p7x");
-            if (File.Exists(appxBundleSignatureFile))
-            {
-                Logging.Log($"Deleting {appxBundleSignatureFile}");
-                File.Delete(appxBundleSignatureFile);
-            }
-
-            string appxBundleMetadataFile = Path.Combine(appxRoot, "AppxBundleMetadata.xml");
-            if (File.Exists(appxBundleMetadataFile))
-            {
-                Logging.Log($"Deleting {appxBundleMetadataFile}");
-                File.Delete(appxBundleMetadataFile);
-            }
-
-            string appxBundleMetadataSignatureFile = Path.Combine(appxRoot, "AppxBundleMetadataSignature.p7x");
-            if (File.Exists(appxBundleMetadataSignatureFile))
-            {
-                Logging.Log($"Deleting {appxBundleMetadataSignatureFile}");
-                File.Delete(appxBundleMetadataSignatureFile);
-            }
-
-            string appxBundleManifestSignatureFile
-                = Path.Combine(appxRoot, "AppxBundleManifestSignature.p7x");
-            if (File.Exists(appxBundleManifestSignatureFile))
-            {
-                Logging.Log($"Deleting {appxBundleManifestSignatureFile}");
-                File.Delete(appxBundleManifestSignatureFile);
-            }
-
-            string appxBundleBlockMapSignatureFile
-                = Path.Combine(appxRoot, "AppxBundleBlockMapSignature.p7x");
-            if (File.Exists(appxBundleBlockMapSignatureFile))
-            {
-                Logging.Log($"Deleting {appxBundleBlockMapSignatureFile}");
-                File.Delete(appxBundleBlockMapSignatureFile);
-            }   
-
-            string appxBundleBlockMapFile2 = Path.Combine(appxRoot, "AppxBlockMap.xml");
-            if (File.Exists(appxBundleBlockMapFile2))
-            {
-                Logging.Log($"Deleting {appxBundleBlockMapFile2}");
-                File.Delete(appxBundleBlockMapFile2);
-            }
-
-            string appxBundleSignatureFile2 = Path.Combine(appxRoot, "AppxSignature.p7x");
-            if (File.Exists(appxBundleSignatureFile2))
-            {
-                Logging.Log($"Deleting {appxBundleSignatureFile2}");
-                File.Delete(appxBundleSignatureFile2);
-            }
-
-            string appxBundleMetadataFile2 = Path.Combine(appxRoot, "AppxMetadata.xml");
-            if (File.Exists(appxBundleMetadataFile2))
-            {
-                Logging.Log($"Deleting {appxBundleMetadataFile2}");
-                File.Delete(appxBundleMetadataFile2);
-            }
-
-            string appxBundleMetadataSignatureFile2
-                = Path.Combine(appxRoot, "AppxMetadataSignature.p7x");
-            if (File.Exists(appxBundleMetadataSignatureFile2))
-            {
-                Logging.Log($"Deleting {appxBundleMetadataSignatureFile2}");
-                File.Delete(appxBundleMetadataSignatureFile2);
-            }
-
-            string appxBundleManifestSignatureFile2
-                = Path.Combine(appxRoot, "AppxManifestSignature.p7x");
-            if (File.Exists(appxBundleManifestSignatureFile2))
-            {
-                Logging.Log($"Deleting {appxBundleManifestSignatureFile2}");
-                File.Delete(appxBundleManifestSignatureFile2);
-            }
-
-            string appxBundleBlockMapSignatureFile2
-                = Path.Combine(appxRoot, "AppxBlockMapSignature.p7x");
-            if (File.Exists(appxBundleBlockMapSignatureFile2))
-            {
-                Logging.Log($"Deleting {appxBundleBlockMapSignatureFile2}");
-                File.Delete(appxBundleBlockMapSignatureFile2);
-            }
-
-            string appxBundleBlockMapFile3 = Path.Combine(appxRoot, "AppxBlockMap.xml");
-            if (File.Exists(appxBundleBlockMapFile3))
-            {
-                Logging.Log($"Deleting {appxBundleBlockMapFile3}");
-                File.Delete(appxBundleBlockMapFile3);
-            }
-
-            string appxBundleSignatureFile3 = Path.Combine(appxRoot, "AppxSignature.p7x");
-            if (File.Exists(appxBundleSignatureFile3))
-            {
-                Logging.Log($"Deleting {appxBundleSignatureFile3}");
-                File.Delete(appxBundleSignatureFile3);
-            }
-
-            string appxBundleMetadataFile3 = Path.Combine(appxRoot, "AppxMetadata.xml");
-            if (File.Exists(appxBundleMetadataFile3))
-            {
-                Logging.Log $"Deleting {appxBundleMetadataFile3}");
-                File.Delete(appxBundleMetadataFile3);
-            }
-
-            string appxBundleMetadataSignatureFile3
-                = Path.Combine(appxRoot, "AppxMetadataSignature.p7x");
-            if (File.Exists(appxBundleMetadataSignatureFile3))
-            {
-                Logging.Log($"Deleting {appxBundleMetadataSignatureFile3}");
-                File.Delete(appxBundleMetadataSignatureFile3);
-            }
-
-            string appxBundleManifestSignatureFile3
-                = Path.Combine(appxRoot, "AppxManifestSignature.p7x");
-            if (File.Exists(appxBundleManifestSignatureFile3))
-            {
-                Logging.Log($"Deleting {appxBundleManifestSignatureFile3}");
-                File.Delete(appxBundleManifestSignatureFile3);
-            }
-
-        private static async Task CheckAndDownloadUpdates(OSSkuId ReportingSku,
-                    string ReportingVersion,
-                    MachineType MachineType,
-                    string FlightRing,
-                    string FlightingBranchName,
-                    string BranchReadinessLevel,
-                    string CurrentBranch,
-                    string ReleaseType,
-                    bool SyncCurrentVersionOnly,
-                    string ContentType,
-                    string Mail,
-                    string Password,
-                    string OutputFolder,
-                    string Language,
-                    string Edition)
-        {
-            Logging.Log("Checking for updates...");
-
-            CTAC ctac = new(ReportingSku, ReportingVersion, MachineType, FlightRing, FlightingBranchName, BranchReadinessLevel, CurrentBranch, ReleaseType, SyncCurrentVersionOnly, ContentType: ContentType);
-            string token = string.Empty;
-            if (!string.IsNullOrEmpty(Mail) && !string.IsNullOrEmpty(Password))
-            {
-                token = await MBIHelper.GenerateMicrosoftAccountTokenAsync(Mail, Password);
-            }
-
-            IEnumerable<UpdateData> data = await FE3Handler.GetUpdates(null, ctac, token, FileExchangeV3UpdateFilter.ProductRelease);
-            //data = data.Select(x => UpdateUtils.TrimDeltasFromUpdateData(x));
-
-            if (!data.Any())
-            {
-                Logging.Log("No updates found that matched the specified criteria.", Logging.LoggingLevel.Error);
-            }
-            else
-            {
-                Logging.Log($"Found {data.Count()} update(s):");
-
-                for (int i = 0; i < data.Count(); i++)
+                if (compdb.Tags.Tag.Find(x => x.Name.Equals("UpdateType", StringComparison.InvariantCultureIgnoreCase))?.Value?.Equals("Canonical", StringComparison.InvariantCultureIgnoreCase) == true)
                 {
-                    UpdateData update = data.ElementAt(i);
-
-                    Logging.Log($"{i}: Title: {update.Xml.LocalizedProperties.Title}");
-                    Logging.Log($"{i}: Description: {update.Xml.LocalizedProperties.Description}");
+                    Logging.Log("Canonical compdb found.");
+                    await ProcessCompDBAsync(update, compdb, appxFiles, appxRoot);
                 }
-
-                foreach (UpdateData update in data)
-                {
-                    Logging.Log("Title: " + update.Xml.LocalizedProperties.Title);
-                    Logging.Log("Description: " + update.Xml.LocalizedProperties.Description);
-
-                    await ProcessUpdateAsync(update, OutputFolder, MachineType, Language, Edition, true);
-                }
-            }
-            Logging.Log("Completed.");
-            if (Debugger.IsAttached)
-            {
-                _ = Console.ReadLine();
             }
         }
 
-        private static async Task ProcessUpdateAsync(UpdateData update, string pOutputFolder, MachineType MachineType, string Language = "", string Edition = "", bool WriteMetadata = true)
+        public static async Task ProcessCompDBAsync(UpdateData update, CompDBXmlClass.CompDB compdb, List<string> appxFiles, string appxRoot)
         {
-            string buildstr = "";
-            IEnumerable<string> languages = null;
-
-            Logging.Log("Gathering update metadata...");
-
-            HashSet<CompDBXmlClass.CompDB> compDBs = await update.GetCompDBsAsync();
-
-            await Task.WhenAll(
-                Task.Run(async () => buildstr = await update.GetBuildStringAsync()),
-                Task.Run(async () => languages = await update.GetAvailableLanguagesAsync()));
-
-            buildstr ??= "";
-
-            //
-            // Windows Phone Build Lab says hi
-            //
-            // Quirk with Nickel+ Windows NT builds where specific binaries
-            // exempted from neutral build info gets the wrong build tags
-            //
-            if (buildstr.Contains("GitEnlistment(winpbld)"))
+            if (compdb.AppX == null)
             {
-                // We need to fallback to CompDB (less accurate but we have no choice, due to CUs etc...
+                Logging.Log("No appx packages found. Skipping.");
+                return;
+            }
 
-                // Loop through all CompDBs to find the highest version reported
-                CompDBXmlClass.CompDB selectedCompDB = null;
-                Version currentHighest = null;
-                foreach (CompDBXmlClass.CompDB compDB in compDBs)
+            Dictionary<string, string> appxLicenseFileMap = new();
+            foreach (CompDBXmlClass.AppxPackage package in compdb.AppX.AppXPackages.Package)
+            {
+                if (package.LicenseData != null)
                 {
-                    if (compDB.TargetOSVersion != null)
-                    {
-                        if (Version.TryParse(compDB.TargetOSVersion, out Version currentVer))
-                        {
-                            if (currentHighest == null || (currentVer != null && currentVer.GreaterThan(currentHighest)))
-                            {
-                                if (!string.IsNullOrEmpty(compDB.TargetBuildInfo) && !string.IsNullOrEmpty(compDB.TargetOSVersion))
-                                {
-                                    currentHighest = currentVer;
-                                    selectedCompDB = compDB;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // We found a suitable CompDB is it is not null
-                if (selectedCompDB != null)
-                {
-                    // Example format:
-                    // TargetBuildInfo="rs_prerelease_flt.22509.1011.211120-1700"
-                    // TargetOSVersion="10.0.22509.1011"
-
-                    buildstr = $"{selectedCompDB.TargetOSVersion} ({selectedCompDB.TargetBuildInfo.Split(".")[0]}.{selectedCompDB.TargetBuildInfo.Split(".")[3]})";
+                    string appxPath = Path.Combine(appxRoot, package.Payload.PayloadItem.FirstOrDefault().Path);
+                    string appxLicensePath = Path.Combine(appxRoot, $"{Path.GetFileNameWithoutExtension(appxPath)}.license");
+                    Logging.Log($"Writing license to {appxLicensePath}");
+                    File.WriteAllText(appxLicensePath, package.LicenseData);
+                    appxLicenseFileMap.Add(Path.GetFileName(appxPath), Path.GetFileName(appxLicensePath));
                 }
             }
 
-            if (string.IsNullOrEmpty(buildstr) && update.Xml.LocalizedProperties.Title.Contains("(UUP-CTv2)"))
+            if (appxLicenseFileMap.Count > 0)
             {
-                string unformattedBase = update.Xml.LocalizedProperties.Title.Split(" ")[0];
-                buildstr = $"10.0.{unformattedBase.Split(".")[0]}.{unformattedBase.Split(".")[1]} ({unformattedBase.Split(".")[2]}.{unformattedBase.Split(".")[3]})";
+                await FixupAppxAsync(update, appxFiles, appxRoot, appxLicenseFileMap);
             }
-            else if (string.IsNullOrEmpty(buildstr))
-            {
-                buildstr = update.Xml.LocalizedProperties.Title;
-            }
-
-            Logging.Log("Build String: " + buildstr);
-            Logging.Log("Languages: " + string.Join(", ", languages));
-
-            Logging.Log("Parsing CompDBs...");
-
-            if (compDBs != null)
-            {
-                CompDBXmlClass.Package editionPackPkg = compDBs.GetEditionPackFromCompDBs();
-                if (editionPackPkg != null)
-                {
-                    string editionPkg = await update.DownloadFileFromDigestAsync(editionPackPkg.Payload.PayloadItem.First(x => !x.Path.EndsWith(".psf")).PayloadHash);
-                    BuildTargets.EditionPlanningWithLanguage[] plans = await Task.WhenAll(languages.Select(x => update.GetTargetedPlanAsync(x, editionPkg)));
-
-                    foreach (BuildTargets.EditionPlanningWithLanguage plan in plans)
-                    {
-                        Logging.Log("");
-                        Logging.Log("Editions available for language: " + plan.LanguageCode);
-                        plan.EditionTargets.PrintAvailablePlan();
-                    }
-                }
-            }
-
-            _ = await DownloadLib.UpdateUtils.ProcessUpdateAsync(update, pOutputFolder, MachineType, new ReportProgress(), Language, Edition, WriteMetadata);
         }
-    }
-}
+
+        public static async Task FixupAppxAsync(UpdateData update, List<string> appxFiles, string appxRoot, Dictionary<string, string> appxLicenseFileMap)
+        {
+            foreach (string appxFile in appxFiles)
+            {
+                string appxLicenseFile = appxLicenseFileMap.GetValueOrDefault(Path.GetFileName(appxFile));
+                if (appxLicenseFile != null)
+                {
+                    Logging.Log($"Adding license to {appxFile}");
+                    await AddLicenseToAppxAsync(appxFile, Path.Combine(appxRoot, appxLicenseFile));
+                }
+            }
+        }
+
+        public static async Task AddLicenseToAppxAsync(string appxFile, string appxLicenseFile)
+        {
+            using ZipArchive archive = ZipFile.Open(appxFile, ZipArchiveMode.Update);
+            ZipArchiveEntry licenseEntry = archive.CreateEntry("AppxSignature.p7x");
+            using Stream licenseStream = licenseEntry.Open();
+            await File.OpenRead(appxLicenseFile).CopyToAsync(licenseStream);
+        }
+
+        public static async Task Main(string[] args)
+        {
+            Logging.Log("Starting...");
+            await ProcessUpdateAsync(args[0], args[1], args[2], args[3], args[4]);
+            Logging.Log("Done.");
+        }
+
+        public static class Logging
+        {
+            public static void Log(string message)
+            {
+                Console.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message}");
+            }
+        }
