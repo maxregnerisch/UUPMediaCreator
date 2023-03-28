@@ -31,8 +31,7 @@ jobs:
       - name: Build CLI utilities
         shell: pwsh
         run: |
-          msbuild /m /t:restore,cli\uupmediaconverter:publish,cli\uupdownload:publish,cli\uupmediaconverterdismbroker:publish /p:Platform=${{ matrix.architecture }} /p:RuntimeIdentifier=${{ matrix.platform }}-${{ matrix.architecture }} /p:PublishDir=${{ github.workspace }}/artifacts/${{ matrix.platform }}-${{ matrix.architecture }}/CLI /p:PublishSingleFile=true /p:PublishTrimmed=false  UUPMediaCreator.sln
-
+         MSBuild.exe Solution.sln /p:Configuration=Debug /p:Platform="x86"
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
